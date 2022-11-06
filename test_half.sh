@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=2 python test_half_by.py --dataset_path /home/neuiva2/liweixi/data/MOT17 --model_dir ./exp/no_atten_half_vis_idweight_corr_6_19/

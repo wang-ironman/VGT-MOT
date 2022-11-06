@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=4 python test_by_20.py --dataset_path /home/neuiva2/liweixi/data/MOT20 --model_dir ./exp/no_atten_half_vis_cor_mix_test_4_12/
