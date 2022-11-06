@@ -1,39 +1,60 @@
-# CTracker (ECCV2020 Spotlight)
+# VGT-MOT
 
-Official implementation in PyTorch of **Chained-Tracker** as described in [Chained-Tracker: Chaining Paired Attentive Regression Results for End-to-End Joint Multiple-Object Detection and Tracking](https://arxiv.org/abs/2007.14557).
- 
-The introduction video of CTracker is uploaded to [Youtube](https://www.youtube.com/watch?v=UovwAgKys88).
+## Title
 
-The codes is tested with PyTorch 0.4.0. It may not run with other versions.
+VGT-MOT ：Visibility guide tracking for online multiple object tracking
 
-## Video demos on MOT challenge test set
-<img src="demos/MOT17-03.gif" width="400"/>   <img src="demos/MOT17-07.gif" width="400"/>
-<img src="demos/MOT17-08.gif" width="400"/>   <img src="demos/MOT17-12.gif" width="400"/>
+## Abstract
+
+Multi-object tracking is the foundation of computer vision and is widely used in video surveillance and autonomous driving scenarios. Most of the existing multi-object tracking methods use Kalman filter to predict the position of the object in the next frame, but there are large errors in the prediction of Kalman filter in the video captured by the moving camera. In addition, how to effectively deal with the occlusion problem in the tracking process also needs further research. To address these problems, a novel joint detection and tracking network, VGT-MOT, is proposed in this paper. To cope with the difficulty of object position prediction due to camera motion, VGT-MOT uses an adjacent-frame object location prediction network to predict the object position in the next frame instead of the traditional Kalman filter. To address the occlusion problem, VGT-MOT guides tracking based on visibility prediction in terms of both similarity metrics and trajectory feature updates. In addition, the predicted visibility is used in the loss calculation of the appearance (Re-ID) branch to reduce the impact of the appearance branch on the detection branch. We evaluated our method on MOT16, MOT17, and MOT20 datasets, and with a single dataset training, MOTA and IDF1 reached 69.7 and 69.4 on MOT17 dataset, and our method has a more advanced performance.
+
+## Experiment results
+
+| Dataset | MOTA | IDF1 | IDS  |  MT  |  ML  |
+| :-----: | :--: | :--: | :--: | :--: | :--: |
+|  MOT16  | 71.0 | 70.3 | 954  | 305  | 157  |
+|  MOT17  | 69.7 | 69.4 | 2841 | 988  | 476  |
+|  MOT20  | 60.9 | 63.4 | 2777 | 711  | 172  |
+
+All of the results are obtained on the [MOT challenge](https://motchallenge.net/) evaluation server under the “private detector” protocol. Our method has a more advanced performance.
 
 ## Installation
-* Clone this repo into a directory named CTRACKER_ROOT
-* Install the required packages
+
+- Clone this repo, and we'll call the directory that you cloned as 
+
+- Install dependencies. We use python 3.6 and pytorch >= 1.1.0
+
 ```
-apt-get install tk-dev python-tk
-```
-* Install Python dependencies. We use python 3.6.5 and pytorch >= 0.4.0
-```
-conda create -n CTracker
-conda activate CTracker
-conda install pytorch=0.4.1 cuda90 -c pytorch
-cd ${CTRACKER_ROOT}
+conda create -n VGTMOT
+conda activate VGTMOT
+conda install pytorch==1.1.0 torchvision==0.2.2 cudatoolkit=9.0 -c pytorch
+cd ${ROOT}
+pip install cython
 pip install -r requirements.txt
-sh lib/build.sh
 ```
 
-## Organize MOT17 dataset
-MOT17 dataset can be downloaded at [MOTChallenge](https://motchallenge.net/data/MOT17Det/).
+- We use DCNv2, correlation, channelNorm  in our backbone network. The Path is ${ROOT}/models/networks.
+- We also use apex for FP16 training.
+
+```
+cd ${ROOT}/models/networks/DCNv2_new
+./make.sh
+cd ${ROOT}/models/networks/correlation_package
+python setup.py install
+cd ${ROOT}/models/networks/channelnorm_package
+python setup.py install
+cd ${ROOT}/apex
+python setup.py install
+```
+
+## Data preparation
+
+MOT17 dataset can be downloaded at [MOTChallenge](https://motchallenge.net/data/MOT17/).
 
 We uses two CSV files to organize the MOT17 dataset: one file containing annotations and one file containing a class name to ID mapping. 
 
 We provide the two CSV files for MOT17 with codes in the CTRACKER_ROOT/data, you should copy them to MOT17_ROOT before starting training. 
 
-### Dataset structures:
 ```
 MOT17_ROOT/
         |->train/
@@ -47,21 +68,25 @@ MOT17_ROOT/
         |->train_annots.csv
         |->train_labels.csv
 ```
+
 MOT17_ROOT is your path of the MOT17 Dataset.
 
+## Annotations format
 
-### Annotations format
 The CSV file with annotations should contain one annotation per line.
 Images with multiple bounding boxes should use one row per bounding box.
 Note that indexing for pixel values starts at 0.
 The expected format of each line is:
+
 ```
-path/to/image.jpg,id,x1,y1,x2,y2,class_name
+path/to/image.jpg,id,x1,y1,x2,y2,vis,class_name
 ```
 
-### Class mapping format
+## Class mapping format
+
 The class name to ID mapping file should contain one mapping per line.
 Each line should use the following format:
+
 ```
 class_name,id
 ```
@@ -70,6 +95,7 @@ Indexing for classes starts at 0.
 Do not include a background class as it is implicit.
 
 For example:
+
 ```
 person,0
 dog,1
@@ -80,34 +106,38 @@ dog,1
 The network can be trained using the `train.py` script. For training on MOT17, use
 
 ```
-CUDA_VISIBLE_DEVICES=0 python train.py --root_path MOT17_ROOT --model_dir ./ctracker/ --depth 50
+CUDA_VISIBLE_DEVICES=2 python -m torch.distributed.launch --nproc_per_node=1 --master_port 25469  train.py --batchsize 2        --root_path {data_root} --csv_train train_annots.csv
 ```
+
 By default, testing will start immediately after training finished.
 
-## Testing
+## Testing and validation
 
-A trained model is available at [Google Drive](https://drive.google.com/file/d/1-5f-3QwcDoFL6b3_81tcsYTWsU43aBaz/view?usp=sharing)/[Tencent Weiyun](https://share.weiyun.com/KgWrWCv3), run the following commands to start testing:
+Run the following commands to start testing:
 
 ```
-CUDA_VISIBLE_DEVICES=0 python test.py --dataset_path MOT17_ROOT --model_dir ./trained_model/
+python test.py
+python test_half.py
 ```
 
+## Pretrained models and baseline model
 
-## Acknowledgements
+- **Pretrained models**
 
-- Part of codes are borrowed from the [pytorch retinanet implementation](https://github.com/yhenon/pytorch-retinanet)
-- The NMS module used is from the [simpledet](https://github.com/TuSimple/simpledet)
+  DLA-34 COCO pretrained model: [DLA-34 official](https://drive.google.com/file/d/1pl_-ael8wERdUREEnaIfqOV_VF2bEVRT/view). 
 
+  ```
+  ${ROOT}
+     └——————models
+             └——————ctdet_coco_dla_2x.pth
+  ```
 
-## Citing CTracker
+  
 
-If you find CTracker is useful in your project, please consider citing us:
+- **Baseline model**
 
-```BibTeX
-@inproceedings{peng2020ctracker,
-  title={Chained-Tracker: Chaining Paired Attentive Regression Results for End-to-End Joint Multiple-Object Detection and Tracking},
-  author={Peng, Jinlong and Wang, Changan and Wan, Fangbin and Wu, Yang and Wang, Yabiao and Tai, Ying and Wang, Chengjie and Li, Jilin and Huang, Feiyue and Fu, Yanwei},
-  booktitle={Proceedings of the European Conference on Computer Vision},
-  year={2020},
-}
-```
+  ```
+  ${FAIRMOT_ROOT}
+     └——————models
+             └——————model_final.pth
+  ```
